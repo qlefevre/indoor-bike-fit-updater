@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modification Binaire de Fichier + Détection FIT</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+    
+</head>
+<body>
+    <h1>Modification Binaire de Fichier + Détection FIT</h1>
+    <p>Sélectionnez un fichier, puis cliquez sur le bouton pour vérifier s'il s'agit d'un fichier FIT, le modifier (remplace le premier octet par <code>0xFF</code>) et le télécharger.</p>
+
+    <div class="container">
+        <input type="file" id="fileInput" accept="*">
+        <button id="processBtn">Vérifier, Modifier et Télécharger</button>
+        <div id="status"></div>
+    </div>
+
+    <!-- Script principal en module ES -->
+    <script type="module">
+        // Importer dynamiquement le SDK
+        import { Stream, Decoder } from './garmin-fit-javascript-sdk/src/index.js';
+        
+        // Ce code s'exécute APRES que le SDK soit chargé (grâce à "defer")
+        document.getElementById('processBtn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('fileInput');
+            const statusElement = document.getElementById('status');
+
+            statusElement.textContent = '';
+            statusElement.className = '';
+
+            if (fileInput.files.length === 0) {
+                statusElement.textContent = "Veuillez sélectionner un fichier.";
+                statusElement.className = 'error';
+                return;
+            }
+
+            const file = fileInput.files[0];
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const stream = Stream.fromArrayBuffer(arrayBuffer);
+                const isFitFile = Decoder.isFIT(stream);
+
+                if (isFitFile) {
+                    statusElement.textContent = `Le fichier "${file.name}" est un fichier FIT valide.`;
+                    statusElement.className = 'success';
+                } else {
+                    statusElement.textContent = `Le fichier "${file.name}" n'est PAS un fichier FIT.`;
+                    statusElement.className = 'info';
+                }
+
+                const byteArray = new Uint8Array(arrayBuffer);
+                if (byteArray.length > 0) {
+                    byteArray[0] = 0xFF;
+                }
+
+                const modifiedBlob = new Blob([byteArray], { type: 'application/octet-stream' });
+                const downloadUrl = URL.createObjectURL(modifiedBlob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = "modifie_" + file.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(downloadUrl);
+
+                statusElement.textContent += ` Fichier modifié et téléchargé avec succès !`;
+            } catch (error) {
+                statusElement.textContent = `Erreur : ${error.message}`;
+                statusElement.className = 'error';
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>
